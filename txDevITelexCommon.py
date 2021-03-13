@@ -138,6 +138,9 @@ class TelexITelexCommon(txBase.TelexBase):
         self._last_acknowledge_counter = 0
         self._send_acknowledge_idle = False
 
+        # Will be overwritten in txDevITelexSrv if configured
+        self._block_incoming_ascii = False
+
     def __del__(self):
         self.exit()
         super().__del__()
@@ -536,6 +539,9 @@ class TelexITelexCommon(txBase.TelexBase):
                     if is_ascii is None:
                         l.info('Detected ASCII connection')
                         is_ascii = True
+                        if self._block_incoming_ascii:
+                            l.info("Disconnecting new ASCII client due to configured blocking")
+                            break
                     elif not is_ascii:
                         l.warning('Detected ASCII connection, but i-Telex was expected')
                         is_ascii = True

@@ -193,7 +193,8 @@
       "enable": true,
       "port": 2342,
       "tns-dynip-number": 0,
-      "tns-pin": 12345
+      "tns-pin": 12345,
+      "block-incoming-ascii": false
     },
     "log": {
       "type": "log",
