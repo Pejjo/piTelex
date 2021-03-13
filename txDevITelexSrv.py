@@ -95,6 +95,10 @@ class TelexITelexSrv(txDevITelexCommon.TelexITelexCommon):
         # quitting piTelex, to wake up everyone still sleeping.
         self.term = Event()
 
+        # Track ZZ (teleprinter sleeping) state to inhibit ESC-Z if it is
+        # active. Otherwise, we might wake up the teleprinter inadvertently.
+        self._zz_active = True
+
         if self._number:
             # Own number given: update own information in TNS (telex number
             # server) if needed
@@ -147,6 +151,10 @@ class TelexITelexSrv(txDevITelexCommon.TelexITelexCommon):
                     # non-command reads in read method so that normal communication
                     # can begin.
                     self._connected = ST.CON_FULL
+            if a == '\x1bZZ':
+                self._zz_active = True
+            if a in ('\x1bZ', '\x1bWB', '\x1bA', '\x1bAA'):
+                self._zz_active = False
             return
 
         if source in ['iTc', 'iTs']:
@@ -216,7 +224,8 @@ class TelexITelexSrv(txDevITelexCommon.TelexITelexCommon):
             self.disconnect_client()
 
         s.close()
-        self._rx_buffer.append('\x1bZ')
+        if not self._zz_active:
+            self._rx_buffer.append('\x1bZ')
         self._printer_running = False
         del self.clients[s]
 
