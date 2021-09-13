@@ -164,7 +164,7 @@ class TelexWeather(txBase.TelexBase):
 #######
 
 if __name__ == "__main__":
-    w_client = openweather('413c90682c0ace1a9c8d47eeea062dac')
+    w_client = openweather('1234')
 
     print(w_client.query('Västervik', 'metric', 'sv'))
 
