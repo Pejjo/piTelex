@@ -1,5 +1,4 @@
-{
-  "devices": {
+{ "devices": {
     "screen": {
       "type": "screen",
       "enable": true,
@@ -13,6 +12,15 @@
       "baudrate": 50,
       "mode": "TW39",
       "coding": 0,
+      "loopback": false
+    },
+    "PjoTTY": {
+      "type": "PjoTTY",
+      "enable": true,
+      "portname": "/dev/ttyACM0",
+      "baudrate": 50,
+      "mode": "V21",
+      "coding": 4,
       "loopback": false
     },
     "ED1000": {
@@ -30,7 +38,7 @@
     },
     "RPiTTY": {
       "type": "RPiTTY",
-      "enable": true,
+      "enable": false,
       "pin_txd": 17,
       "pin_rxd": 27,
       "inv_rxd": false,
@@ -83,11 +91,28 @@
       "type": "archive",
       "enable": false,
       "path": "/data/piTelex/"
+    },
+    "krisinfo": {
+      "type": "krisinfo",
+      "enable": true, 
+      "poll_interval": 18,
+      "country_filter": "Sverige",
+      "county_filter": "Kalmar län",
+      "municipality_filter": "Västervik",
+      "url": "http://api.krisinformation.se/v3/news"
+    },
+    "weather": {
+      "apikey": "0",
+      "type": "weather",
+      "enable": false,
+      "language": "sv",
+      "units": "metric"
     }
   },
   "verbose": true,
   "wru_id": "",
   "wru_fallback": false,
   "dial_timeout": 0,
-  "debug": 3
+  "debug": 3,
+  "userlist": "userlist.csv"
 }

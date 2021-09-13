@@ -64,6 +64,10 @@ def load():
         dest="CH340_TW39", default='', metavar="TTY",   # '/dev/serial0'   '/dev/ttyUSB0'
         help="USB-serial-adapter (CH340-chip) with TW39 teletype (pulse dial)")
 
+    gi.add_argument("-P", "--ttyPjo",
+        dest="PjoTTY", default='', metavar="TTY",   # '/dev/serial0'   '/dev/ttyUSB0'
+        help="USB Pejjo's interface")
+
     gi.add_argument("-M", "--ttyTWM",
         dest="CH340_TWM", default='', metavar="TTY",   # '/dev/serial0'   '/dev/ttyUSB0'
         help="USB-serial-adapter (CH340-chip) with TWM teletype (keypad dial)")
@@ -109,6 +113,11 @@ def load():
     gt.add_argument("-Z", "--eliza",
         dest="eliza", default=False, action="store_true",
         help="Eliza chat bot")
+
+    gt.add_argument("-O", "--openweather",
+        dest="weather", default=False, action="store_true",
+        help="OpenWeather client")
+
 
     gt.add_argument("-A", "--archive",
         dest="archive", default=False, action="store_true",
@@ -213,6 +222,10 @@ def load():
     if ARGS.CH340_V10:
         devices['CH340_V10'] = {'type': 'CH340TTY', 'enable': True, 'portname': ARGS.CH340_V10.strip(), 'mode': 'V10', 'baudrate': 50, 'loopback': False}
 
+    if ARGS.PjoTTY:
+        devices['PjoTTY'] = {'type': 'PjoTTY', 'enable': True, 'portname': ARGS.PjoTTY.strip(), 'mode': 'V21', 'baudrate': 50, 'loopback': True}
+
+
     if ARGS.RPiTTY:
         devices['RPiTTY'] = {
             'type': 'RPiTTY',
@@ -286,6 +299,9 @@ def load():
 
     if ARGS.eliza:
         devices['eliza'] = {'type': 'eliza', 'enable': True}
+
+    if ARGS.eliza:
+        devices['weather'] = {'type': 'weather', 'enable': True}
 
     if ARGS.archive:
         devices['archive'] = {'type': 'archive', 'enable': True, 'path': 'archive'}

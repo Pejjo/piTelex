@@ -108,6 +108,9 @@ class CLI():
         elif cmd == 'W':
             ans = get_shell_result("w")
 
+        elif cmd == 'CAT':
+            ans = get_shell_result("cat outfile.txt")
+
 
         if ans == '':
             ans = '?'

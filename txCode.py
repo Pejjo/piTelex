@@ -84,6 +84,10 @@ class BaudotMurrayCode:
         "~E\nA SIU\rDRJNFCKTZLWHYPQOBG>MXV<",
         "~3\n- '87\r@4%,~:(5+)2~6019?~>./=<"
     )
+    _LUT_BM2A_ITA2_SE = (
+        "~E\nA SIU\rDRJNFCKTZLWHYPQOBG>MXV<",
+        "~3\n- '87\r@4%,Å:(5+)2Ö6019?Ä>./=<"
+    )
     _LUT_BM2A_US = (
         "~E\nA SIU\rDRJNFCKTZLWHYPQOBG>MXV<",
         "~3\n- %87\r$4',!:(5\")2@6019?&>./;<"
@@ -105,11 +109,11 @@ class BaudotMurrayCode:
 
     # Baudot-Murray-Code valid ASCII table
     #_valid_char = " ABCDEFGHIJKLMNOPQRSTUVWXYZ~3\n- '87\r@4%,~:(5+)2~6019?~]./=[#"
-    _valid_ASCII_convert_chars = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-+=:/()?.,'\n\r@~"
+    _valid_ASCII_convert_chars = " ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789-+=:/()?.,'\n\r@~"
     _LUT_convert_chars = {
-        'Ä': 'AE',
-        'Ö': 'OE',
-        'Ü': 'UE',
+#        'Ä': 'AE',
+#        'Ö': 'OE',
+#        'Ü': 'UE',
         'ß': 'SS',
         '\a': '%',   # Bell
         '\f': '(FF)',   # Form Feed
@@ -144,6 +148,7 @@ class BaudotMurrayCode:
     CODING_US = 1
     CODING_MKT2 = 2
     CODING_ZUSE = 3
+    CODING_ITA2_SE = 4
 
     # =====
 
@@ -218,6 +223,9 @@ class BaudotMurrayCode:
         elif coding == self.CODING_ZUSE:
             self._LUT_BM2A = self._LUT_BM2A_ZUSE
             self._LUT_BMsw = self._LUT_BMsw_ZUSE
+        elif coding == self.CODING_ITA2_SE:
+            self._LUT_BM2A = self._LUT_BM2A_ITA2_SE
+            self._LUT_BMsw = self._LUT_BMsw_ITA2
         else:
             self._LUT_BM2A = self._LUT_BM2A_ITA2
             self._LUT_BMsw = self._LUT_BMsw_ITA2

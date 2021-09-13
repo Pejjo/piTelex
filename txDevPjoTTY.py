@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 """
-Telex Device - Serial Communication over CH340-Chip (not FTDI, not Prolific, not CP213x)
+Telex Device - Serial Communication over Pejjo's hardware module
 
 Protocol:
-https://wiki.telexforum.de/index.php?title=TW39_Verfahren_(Teil_2)
+tbd
 
 """
-__author__      = "Jochen Krapf"
-__email__       = "jk@nerd2nerd.org"
-__copyright__   = "Copyright 2018, JK"
+__author__      = "Per Johansson"
+__email__       = "per@hoj.nu"
+__copyright__   = "Copyright 2021, PJ"
 __license__     = "GPL3"
 __version__     = "0.0.1"
 
@@ -27,16 +27,16 @@ import log
 
 #######
 
-class TelexCH340TTY(txBase.TelexBase):
+class TelexPjoTTY(txBase.TelexBase):
     def __init__(self, **params):
         super().__init__()
 
         self.id = 'chT'
         self.params = params
 
-        portname = params.get('portname', '/dev/ttyUSB0')
+        portname = params.get('portname', '/dev/ttyACM0')
         baudrate = params.get('baudrate', 50)
-        bytesize = params.get('bytesize', 5)
+        bytesize = params.get('bytesize', 8)
         stopbits = params.get('stopbits', serial.STOPBITS_ONE_POINT_FIVE)
         coding = params.get('coding', 0)
         loopback = params.get('loopback', None)
@@ -49,10 +49,11 @@ class TelexCH340TTY(txBase.TelexBase):
         self._counter_dial = 0
         self._time_last_dial = 0
         self._cts_stable = True   # rxd=Low
-        self._cts_counter = 0
+        self._state_counter = 0
         self._time_squelch = 0
         self._is_enabled = False
         self._is_online = False
+        self._is_pending = False
         self._last_out_waiting = 0
 
         self._set_mode(params['mode'])
@@ -107,17 +108,13 @@ class TelexCH340TTY(txBase.TelexBase):
             self._use_squelch = True
             self._use_dedicated_line = False
 
-        if mode.find('TWM') >= 0:
-            self._loopback = True
-            self._use_cts = True
-            self._use_squelch = True
+        if mode.find('V21') >= 0:
+            self._loopback = False
+            self._use_cts = False
+            self._use_squelch = False
             self._use_dedicated_line = False
+            self._use_pulse_dial = False
 
-        if mode.find('V.10') >= 0 or mode.find('V10') >= 0:
-            self._use_cts = True
-            self._inverse_cts = True
-            #self._inverse_dtr = True
-            self._use_dedicated_line = False
 
     # -----
 
@@ -192,35 +189,33 @@ class TelexCH340TTY(txBase.TelexBase):
                 bb = self._mc.encodeA2BM(aa)
                 if bb:
                     self._tty.write(bb)
+                    time.sleep(0.15) # Need to throttle somehow
 
     # -----
 
     def idle20Hz(self):
         time_act = time.time()
 
-        if self._use_pulse_dial and self._counter_dial and (time_act - self._time_last_dial) > 0.2:
-            if self._counter_dial >= 10:
-                self._counter_dial = 0
-            a = str(self._counter_dial)
-            self._rx_buffer.append(a)
-            self._time_last_dial = time_act
-            self._counter_dial = 0
-
-        if self._use_cts:
-            cts = not self._tty.cts != self._inverse_cts   # logical xor
-            if cts != self._cts_stable:
-                self._cts_counter += 1
-                if self._cts_counter == 10:   # 0.5sec
-                    self._cts_stable = cts
-                    if not cts:   # rxd=Low
-                        self._rx_buffer.append('\x1bST')
-                        pass
-                    elif not self._is_enabled:   # rxd=High
-                        self._rx_buffer.append('\x1bAT')
-                        pass
+        if self._state_counter==0:
+            if self._tty.ri==True:
+                if not self._is_online:   # rxd=High
+                    self._state_counter=20
+                    self._rx_buffer.append('\x1bAT')
+#                    self._rx_buffer.append('\x1bA')
                     pass
-            else:
-                self._cts_counter = 0
+            elif self._tty.dsr ==False:   # logical xor
+                if self._is_enabled:
+                    self._state_counter=20
+                    self._rx_buffer.append('\x1bST')
+                    pass
+            elif self._tty.dsr ==True and self._is_pending:
+                # Confirm enable status for MCP
+                self._rx_buffer.append('\x1b~0')
+                self._is_pending=False
+
+        elif self._state_counter>0:
+            self._state_counter-=1
+
 
     # -----
 
@@ -232,19 +227,27 @@ class TelexCH340TTY(txBase.TelexBase):
             self._last_out_waiting = out_waiting
 
     # -----
-
+#
     def _set_online(self, online:bool):
         self._is_online = online
-        self._tty.rts = online != self._inverse_rts    # RTS
+        self._is_pending=True
+        self._state_counter=20 # Let remote end confirm online
+        if online:
+            self._tty.rts = True
+        else:
+            self._tty.rts = False
+
 
     # -----
 
     def _set_enable(self, enable:bool):
-        if enable and not self._is_enabled:
-            # Confirm enable status for MCP
-            self._rx_buffer.append('\x1b~0')
         self._is_enabled = enable
-        self._tty.dtr = enable != self._inverse_dtr    # DTR -> True=Low=motor_on
+        self._is_pending = True
+        if enable:
+            self._tty.dtr = True    # DTR -> True=Low=motor_on
+        else:
+            self._tty.dtr = False    # DTR -> True=Low=motor_on
+
         self._mc.reset()
         if self._use_squelch:
             self._set_time_squelch(0.5)

@@ -114,7 +114,12 @@ def init_error_log(log_path):
     handler.setLevel(logging.DEBUG) # Upper bounds for log level of all loggers
     formatter = logging.Formatter('%(asctime)s %(name)s [%(levelname)s]: %(message)s')
     handler.setFormatter(formatter)
+
+    cons = logging.StreamHandler()
+    cons.setLevel(logging.DEBUG)
+
     logger.addHandler(handler)
+    logger.addHandler(cons)
 
     sys.excepthook = excepthook
     sys.unraisablehook = unraisablehook # Works from Python 3.8
@@ -169,6 +174,11 @@ def init():
             serial = txDevCH340TTY.TelexCH340TTY(**dev_param)
             DEVICES.append(serial)
 
+        elif dev_param['type'] == 'PjoTTY':
+            import txDevPjoTTY
+            serial = txDevPjoTTY.TelexPjoTTY(**dev_param)
+            DEVICES.append(serial)
+
         elif dev_param['type'] == 'terminal':
             import txDevTerminal
             serial = txDevTerminal.TelexTerminal(**dev_param)
@@ -209,6 +219,11 @@ def init():
             twitter = txDevTwitter.TelexTwitter(**dev_param)
             DEVICES.append(twitter)
 
+        elif dev_param['type'] == 'krisinfo':
+            import txDevMSB
+            msb = txDevMSB.TelexMSB(**dev_param)
+            DEVICES.append(msb)
+
         elif dev_param['type'] == 'IRC':
             import txDevIRC
             news = txDevIRC.TelexIRC(**dev_param)
@@ -223,6 +238,11 @@ def init():
             import txDevEliza
             eliza = txDevEliza.TelexEliza(**dev_param)
             DEVICES.append(eliza)
+
+        elif dev_param['type'] == 'weather':
+            import txDevWeather
+            weather = txDevWeather.TelexWeather(**dev_param)
+            DEVICES.append(weather)
 
         elif dev_param['type'] == 'archive':
             import txDevArchive
