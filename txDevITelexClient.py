@@ -34,7 +34,7 @@ class TelexITelexClient(txDevITelexCommon.TelexITelexCommon):
     _userlist = ''
 
     def __init__(self, **params):
-        super().__init__()
+        super().__init__(**params)
 
         self.id = 'iTc'
         self.params = params

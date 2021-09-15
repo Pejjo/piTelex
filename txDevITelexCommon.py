@@ -18,7 +18,7 @@ random.seed()
 
 import logging
 l = logging.getLogger("piTelex." + __name__)
-#l.setLevel(logging.DEBUG)
+l.setLevel(logging.INFO)
 
 import txCode
 import txBase
@@ -96,8 +96,10 @@ def display_hex(data:bytes) -> str:
 
 
 class TelexITelexCommon(txBase.TelexBase):
-    def __init__(self):
+    def __init__(self, **params):
         super().__init__()
+
+        self._coding=params.get('coding', 0)
 
         self._rx_buffer = []
         self._tx_buffer = []
@@ -187,7 +189,7 @@ class TelexITelexCommon(txBase.TelexBase):
 
     def process_connection(self, s:socket.socket, is_server:bool, is_ascii:bool):  # Takes client socket as argument.
         """Handles a client or server connection."""
-        bmc = txCode.BaudotMurrayCode(False, False, True)
+        bmc = txCode.BaudotMurrayCode(False, self._coding, True)
         sent_counter = 0
         self._received_counter = 0
         printed_counter = 0
