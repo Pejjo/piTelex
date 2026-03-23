@@ -738,7 +738,6 @@ class TelexITelexCommon(txBase.TelexBase):
     # List of TNS addresses as of 2020-04-21
     # <https://telexforum.de/viewtopic.php?f=6&t=2504&p=17795#p17795>
     _tns_addresses = [
-        "sonnibs.no-ip.org",
         "tlnserv.teleprinter.net",
         "tlnserv3.teleprinter.net",
         "telexgateway.de"

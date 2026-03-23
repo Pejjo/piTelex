@@ -177,6 +177,7 @@ class TelexPjoTTY(txBase.TelexBase):
         if a:
             if self._is_enabled or self._use_dedicated_line:
                 self._tx_buffer.append(a)
+                self._last_out_waiting=-1
 
     # =====
 

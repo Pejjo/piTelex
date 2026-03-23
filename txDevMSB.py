@@ -24,6 +24,7 @@ import txCode
 import html2text
 import log
 import logging
+import ssl
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
@@ -109,7 +110,20 @@ class MSB_Client():
         self.countries=countries.split(',')
         self.counties=counties.split(',')
         self.municipalities=municipalities.split(',')
-        self.lastid=16176
+        self.idfile="krisinfo/last.id"
+        self.context = ssl._create_unverified_context()
+
+        try:
+          f = open(self.idfile, "r")
+          strlastid=f.readline()
+          f.close()
+          self.lastid=int(strlastid) 
+        except:
+          self.lastid=16186
+          pass
+
+
+
         self.q = queue.Queue()
 
         self.running = True
@@ -136,7 +150,8 @@ class MSB_Client():
                if timer==0:
                    timer=60*60
                    # store the response of URL
-                   response = urlopen(self.url)
+                   print("OPen ", self.url)
+                   response = urlopen(self.url, context=self.context)
   
                    # storing the JSON response 
                    # from url in data
@@ -168,9 +183,19 @@ class MSB_Client():
                        if addMe:
                            if int(itm['Identifier'])>self.lastid:
                                self.lastid=int(itm['Identifier'])
+                               try:
+                                  f = open(self.idfile, "w")
+                                  f.write(str(self.lastid))
+                                  f.close()
+                               except:
+                                  logger.exception("Update lastid")
+                                  pass
                                message=itm['Updated'].rstrip()+'\n'
                                message=message+html2text.html2text(itm['Headline']).rstrip()+'\n\n'
                                wrapper = textwrap.TextWrapper(initial_indent="  ", subsequent_indent="  ", width=64)
+                               if 'Preamble' in itm:
+                                  message=message+wrapper.fill(html2text.html2text(itm['Preamble'])).rstrip()+'\n\n'
+
                                message=message+wrapper.fill(html2text.html2text(itm['BodyText'])).rstrip()+'\n\n\n'
                                print(self.lastid)
 

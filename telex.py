@@ -1,4 +1,12 @@
+
 #!/usr/bin/python3
+import os
+
+print("Start Pi telex")
+print("Dir: ", os.getcwd())
+user = os.getenv("USER")
+print("Files: ", os.listdir(r"/dev"))
+
 """
 testTelex for RPi Zero W or PC
 """
@@ -339,7 +347,6 @@ def main():
     time_20Hz = time.time()
     time_200Hz = time.time()
     sleep_time = 0.001
-
     try:
         while True:
             time_act = int(time.time() * 1000)   # time in ms
