@@ -11,19 +11,13 @@ __version__     = "0.0.1"
 import time
 
 import logging
+
+from txReleaseInfo import ReleaseInfo
 l = logging.getLogger("piTelex." + __name__)
 
 import txBase
 
 #######
-
-def find_rev() -> str:
-    """
-    Try finding out the git commit id and return it.
-    """
-    import subprocess
-    result = subprocess.run(["git", "log", "--oneline", "-1"], stdout=subprocess.PIPE, check=True)
-    return result.stdout.decode("utf-8", errors="replace").strip()
 
 class TelexLog(txBase.TelexBase):
     def __init__(self, **params):
@@ -36,15 +30,20 @@ class TelexLog(txBase.TelexBase):
 
         self._last_time = self._last_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         self._last_source = '   '
-        self._line = '===== piTelex rev '
+        self._line = '===== piTelex Rev. ' + ReleaseInfo.get_release_info()
+        """
         try:
-            self._line += find_rev()
-            # cut line to head, commit hash and max. 50 characters description
-            # (as widely recommended)
-            self._line = self._line[:77]
-            self._line += ' '
+            from telex import find_rev
+            rev = find_rev()
         except:
             pass
+        else:
+            self._line += 'rev ' + rev
+        """
+        # cut line to head, commit hash and max. 50 characters description
+        # (as widely recommended)
+        self._line = self._line[:77]
+        self._line += ' '
 
         self._line += (80 - len(self._line)) * '='
 

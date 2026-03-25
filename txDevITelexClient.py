@@ -26,6 +26,7 @@ l = logging.getLogger("piTelex." + __name__)
 import txCode
 import txBase
 import txDevITelexCommon
+from txDevITelexCommon import ST
 
 
 class TelexITelexClient(txDevITelexCommon.TelexITelexCommon):
@@ -39,6 +40,8 @@ class TelexITelexClient(txDevITelexCommon.TelexITelexCommon):
         self.id = 'iTc'
         self.params = params
 
+        TelexITelexClient._tns_addresses = params.get('tns_srv', ['tlnserv.teleprinter.net','tlnserv2.teleprinter.net','tlnserv3.teleprinter.net'])
+        # print('TNS: ',TelexITelexClient._tns_addresses)
         TelexITelexClient._tns_port = params.get('tns_port', 11811)
         TelexITelexClient._userlist = params.get('userlist', 'userlist.csv')
 
@@ -91,7 +94,7 @@ class TelexITelexClient(txDevITelexCommon.TelexITelexCommon):
         if source in ['iTc', 'iTs']:
             return
 
-        if not self._connected:
+        if self._connected <= ST.DISCON:
             return
 
         self._tx_buffer.append(a)
@@ -144,7 +147,9 @@ class TelexITelexClient(txDevITelexCommon.TelexITelexCommon):
             self.disconnect_client()
 
         s.close()
-        self._rx_buffer.append('\x1bZ')
+
+#        self._rx_buffer.append('\x1bZ') # rowo 
+        self._rx_buffer.append('\x1bST') # rowo don't force Z mode (would wake up from ZZ...), but trigger transit to sleep
         self._printer_running = False
 
     # =====
@@ -276,41 +281,42 @@ class TelexITelexClient(txDevITelexCommon.TelexITelexCommon):
             l.error("Exception caught:", exc_info = sys.exc_info())
             return None
 
-    @classmethod
-    def query_TNS(cls, number):
-        # get IP of given number from Telex-Number-Server (TNS)
-        # typical answer from TNS: 'ok\r\n234200\r\nFabLab, Wuerzburg\r\n1\r\nfablab.dyn.nerd2nerd.org\r\n2342\r\n-\r\n+++\r\n'
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(3.0)
-                s.connect((cls.choose_tns_address(), cls._tns_port))
-                qry = bytearray('q{}\r\n'.format(number), "ASCII")
-                s.sendall(qry)
-                data = s.recv(1024)
-
-            data = data.decode('ASCII', errors='ignore')
-            items = data.split('\r\n')
-
-            if len(items) >= 7 and items[0] == 'ok':
-                if 3 <= int(items[3]) <= 4:
-                    type = 'A'
-                else:
-                    type = 'I'
-                user = {
-                    'TNum': items[1],
-                    'ENum': items[6],
-                    'Name': items[2],
-                    'Type': type,
-                    'Host': items[4],
-                    'Port': int(items[5]),
-                }
-                l.info('Found user in TNS: '+str(user))
-                return user
-
-        except:
-            pass
-
-        return None
+#---rowo commented out: user nowhere :-) replaced by query_TNS_bin
+#    @classmethod
+#    def query_TNS(cls, number):
+#        # get IP of given number from Telex-Number-Server (TNS)
+#        # typical answer from TNS: 'ok\r\n234200\r\nFabLab, Wuerzburg\r\n1\r\nfablab.dyn.nerd2nerd.org\r\n2342\r\n-\r\n+++\r\n'
+#        try:
+#            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+#                s.settimeout(3.0)
+#                s.connect((cls.choose_tns_address(), cls._tns_port))
+#                qry = bytearray('q{}\r\n'.format(number), "ASCII")
+#                s.sendall(qry)
+#                data = s.recv(1024)
+#
+#            data = data.decode('ASCII', errors='ignore')
+#            items = data.split('\r\n')
+#
+#            if len(items) >= 7 and items[0] == 'ok':
+#                if 3 <= int(items[3]) <= 4:
+#                    type = 'A'
+#                else:
+#                    type = 'I'
+#                user = {
+#                    'TNum': items[1],
+#                    'ENum': items[6],
+#                    'Name': items[2],
+#                    'Type': type,
+#                    'Host': items[4],
+#                    'Port': int(items[5]),
+#                }
+#                l.info('Found user in TNS: '+str(user))
+#                return user
+#
+#        except:
+#            pass
+#
+#        return None
 
 
     @classmethod

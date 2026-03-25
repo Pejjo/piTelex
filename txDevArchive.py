@@ -8,8 +8,10 @@ __license__     = "GPL3"
 import datetime
 import os
 import re
-
 import logging
+import smtplib
+from email.mime.text import MIMEText
+
 l = logging.getLogger("piTelex." + __name__)
 
 import txBase
@@ -61,6 +63,15 @@ class TelexArchive(txBase.TelexBase):
             pass
         l.info("Archiving in {!r}".format(self.arclog_path))
 
+        # E-Mail Konfiguration (direkt aus der archive-Konfiguration)
+        self.email_enabled = params.get("send_email", False)
+        self.smtp_server = params.get("smtp_server")
+        self.smtp_port = params.get("smtp_port")
+        self.smtp_user = params.get("smtp_user")
+        self.smtp_password = params.get("smtp_password")
+        self.recipient = params.get("recipient")
+        self.email_sender = params.get("email_sender", "noreply@example.com")
+
     def __del__(self):
         self.exit()
         super().__del__()
@@ -76,11 +87,18 @@ class TelexArchive(txBase.TelexBase):
         telex.py main loop writes all data passing through piTelex to us by
         this method.
         """
+        #ATTENTION DO NOT react to Baf (Babelfish) it will be an endless loop....
+        if source == 'Baf':
+            return
+        #this prevents Archive from endless loop by repeating Babelfish translations... WH
+
         if len(data) > 1:
             # this is a command
             if data == "\x1bWB":
                 # Dialling triggered
-                self._state = 1
+                if self._state <= 1:
+                    # Prevent rogue WB commands from resetting us
+                    self._state = 1
             elif data.startswith("\x1b#") and self._state == 1:
                 # Dial command: record. The number dialled last will remain
                 # (and should be the one that was successful)
@@ -135,7 +153,14 @@ class TelexArchive(txBase.TelexBase):
 
         fn["title"] = "msg {} {}".format(direction, wru)
 
-        return os.path.join(self.arclog_path, "{timestamp} {title}.txt".format(**fn))
+        fname = fname_orig = "{timestamp} {title}.txt".format(**fn)
+        # Replace illegal characters by U+FFFD. GNU/Linux tolerates most of
+        # these, but Windows doesn't. Use lowest common denominator.
+        for c in '\0\\/:*?"<>|':
+            fname = fname.replace(c, "\ufffd")
+        if fname != fname_orig:
+            l.warning("Filename contains unsafe characters, replaced (\"{}\" => \"{}\")".format(fname_orig, fname))
+        return os.path.join(self.arclog_path, fname)
 
     @classmethod
     def find_WRU_answer(cls, data, inbound=False) -> str:
@@ -151,24 +176,6 @@ class TelexArchive(txBase.TelexBase):
           3. LF
           4.-19. 16 signals
           20. letter shift (optional)
-
-        We identify the answerback code like so (proudly supported by re
-        module):
-        - Filter out all colour ESC sequences, shifts and CRs
-        - Trigger on first WRU character (@ or #, see below).
-        - After this, allow for up to 4 characters until one or more newlines.
-        - After this, the match group begins -- record 5..30 characters until
-          the next newline. (In theory, only 17; allow for longer answerbacks)
-
-        The previous sermon is only valid for outbound connections,
-        unfortunately. Incoming connections are typically done as follows (pure
-        convention however):
-        - The remote sends WRU, we send our WRU answer
-        - The remote triggers his own WRU answer
-
-        To overcome this in most cases, if inbound=True is given, don't record
-        the line directly after WRU, but the next one after that. Also, trigger
-        on inbound WRU character (#) instead of outbound (@).
         """
         # Filter out direction shifts
         data = re.sub(pattern=INBOUND+"|"+OUTBOUND, string=data, repl="")
@@ -191,15 +198,6 @@ class TelexArchive(txBase.TelexBase):
         """
         Post-process the message msg to make it visually pleasing when
         "catting" in console.
-
-        Currently, the following is done:
-        - Remove letter/figure shift.
-        - Replace ASCII Shift-in/Shift-Out used to discern inbound/outbound
-          characters by ANSI escape sequences for text colour change.
-        - Replace piTelex internal WRU characters by Unicode character U+2720
-          (✠).
-        - Insert a "❮" character wherever isolated CRs may lead to
-          overprinting, to make this obvious.
         """
         # Remove letter/figure shifts
         msg = re.sub(pattern="<|>", string=msg, repl="")
@@ -207,21 +205,6 @@ class TelexArchive(txBase.TelexBase):
         # Replace @/# by ✠
         msg = re.sub(pattern="@", string=msg, repl="✠")
         msg = re.sub(pattern="#", string=msg, repl="✠")
-
-        # If a CR could lead to overprinting, replace it with "❮". The
-        # following conditions apply:
-        # - Every CR must be followed by another CR or a newline,
-        # - except there are no printable characters between it and the newline
-        #   before it.
-        # Examples see in prettify_cr_test.
-
-        # 1. Replace multiple consecutive CRs by one
-        msg = re.sub(pattern="\r+", string=msg, repl="\r")
-        # 2. Delete rogue CRs at beginnings of lines, allowing for a single
-        # unprintable direction shift if present
-        msg = re.sub(pattern="^([{}]?)\r".format(INBOUND+OUTBOUND), string=msg, repl="\g<1>", flags=re.MULTILINE)
-        # 3. Replace by "<" all CRs not followed by newline
-        msg = re.sub(pattern="\r([^\n])", string=msg, repl="❮\g<1>")
 
         # Replace direction shifts by ANSI ESC sequences for colour change
         msg = re.sub(pattern=OUTBOUND, string=msg, repl=ANSI_RED_FOREGROUND)
@@ -239,11 +222,9 @@ class TelexArchive(txBase.TelexBase):
         self._current_msg = []
 
         if self._dial_number:
-            # outbound connection
             direction = "to"
             wru = self.find_WRU_answer(msg, inbound=False)
         else:
-            # inbound connection
             direction = "from"
             wru = self.find_WRU_answer(msg, inbound=True)
 
@@ -258,54 +239,58 @@ class TelexArchive(txBase.TelexBase):
         filename = self.filename(wru=wru, direction=direction, timestamp=self._timestamp)
         self._timestamp = None
 
-        l.info("saving {}, length {}".format(filename, len(msg)))
-        with open(filename, mode="w", encoding="utf-8", newline="") as f:
-            f.write(msg)
+        l.info(f"Saving {filename}, length {len(msg)}")
+        try:
+            with open(filename, "w", encoding="utf-8", newline="") as f:
+                f.write(msg)
+        except OSError as e:
+            l.error(f"OS error while writing file: {e}")
+
+        # E-Mail senden, wenn aktiviert
+        if self.email_enabled and direction == "from":
+            self.send_email(wru, msg)
+
         return filename
 
-prettify_cr_test = """
-\rOK: "Rogue" CR at beginning of line
-\r\r\rOK: Multiple CRs at beginning of line
-Test data\r
-Test data\r\r\r
-Last two lines also ok: CR(s) at line ending
-Test data 1\rTest data 2, not OK: First part will be overprinted
-\r\r\rtest1\rtest2\r\r\rtest3\r\r
-The previous line should render as 'test1❮test2❮test3'
-"""
+    def send_email(self, wru: str, msg: str):
+        """
+        Send received message by mail, if configured
+        """
+        if not all([self.smtp_server, self.smtp_port, self.smtp_user, self.smtp_password, self.recipient]):
+            l.error("Incomplete mail configuration.")
+            return
 
-prettify_lf_test = """There should come a single newline after this
-\r\x0fHow far down am I?"""+OUTBOUND
+        subject = f"Telex from {wru}"
+        filtered_msg = self.filter_email_text(msg)
 
-wru_outbound_test = """12345678+<<<<<<<\r
->88.88.8888  88:88\r
-@<\r
->12345678< example d<>\r
-87654321 <ich d\r
-\r
----message---\r
->\r
-87654321 <ich d>@<\r
->12345678< example d<"""
+        email_msg = MIMEText(filtered_msg, "plain", "utf-8")
+        email_msg["Subject"] = subject
+        email_msg["From"] = self.email_sender
+        email_msg["To"] = self.recipient
 
-wru_inbound_test = """<<<\r
-88.88.8888  88:88\r
->>#<\r
->87654321< ich d<>\r
-12345678< example d<<<\r\r
-\r
----message---\r
-\r
->#<\r
->87654321< ich d<>\r
-12345678< example d<<<"""
+        try:
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_user, self.smtp_password)
+                server.sendmail(self.email_sender, self.recipient, email_msg.as_string())
+            l.info(f"E-Mail containing telex message from {wru} sent to {self.recipient}")
+        except Exception as e:
+            l.error(f"Error while sending e-mail: {e}")
+
+    @staticmethod
+    def filter_email_text(text: str) -> str:
+        """
+        Delete invalid characters in mail text
+        """
+        allowed_chars = " abcdefghijklmnopqrstuvwxyz0123456789-+=:/()?.,'\n\r@°"
+        return "".join(c if c in allowed_chars else "" for c in text.lower())
 
 def main():
     import sys
     files = sys.argv[1:]
     if not files:
-        print("""txDevArchive prettifier
-Usage: {} <filename>""".format(sys.argv[0]))
+        print(f"""txDevArchive prettifier
+Usage: {sys.argv[0]} <filename>""")
         return
     import io
     for f in files:
@@ -315,3 +300,4 @@ Usage: {} <filename>""".format(sys.argv[0]))
 
 if __name__ == "__main__":
     main()
+
